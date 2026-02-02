@@ -52,7 +52,7 @@ The goal of this project was to explore:
 
 ## Project structure
 ```text
-AdvancedMediaSearcher/
+AdvancedMediaSearcher/src
 ├── gui_app.py
 ├── gui_utilities.py
 ├── themes.py
