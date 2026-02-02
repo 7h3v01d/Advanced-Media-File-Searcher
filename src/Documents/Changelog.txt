@@ -1,0 +1,24 @@
+Project Changelog
+
+June 12, 2025
+
+
+ADD: batch_processor.py: Introduced new module batch_processor.py to encapsulate core batch processing logic, improving modularity and separation of concerns.
+ADD: batch_tab.py: Replaced "Batch Processing Options" with "Find Instances" (Single/Multiple) to control how many matches are found per search term in batch mode.
+ADD: batch_tab.py: Integrated FileSearchService for real file system searches in batch processing, moving from simulated searches to actual functionality.
+FIXED: batch_tab.py: Improved the layout, alignment, and readability of the "Batch Process Summary" output in the GUI.
+FIXED: batch_tab.py: Modified batch results display to show "Parsed:" data only when "Show Debug Info" is enabled.
+FIXED: search_tab.py: Corrected an AttributeError in browse_folder method by referencing self.location_entry directly instead of self.search_tab.location_entry.
+ADD: Introduced search_service.py to act as a dedicated service layer, encapsulating the core search and classification logic, separating it from the GUI for improved modularity and reusability.
+FIXED: gui_app.py: Corrected a NameError by ensuring the exact_match_mode variable was properly defined and retrieved from the GUI's checkbox state before being passed to the FileSearchService.
+FIXED: gui_app.py: Ensured that the previous search results and debug output are completely cleared from the display when a new search begins, providing a clean slate for new output.
+FIXED: filetracker.py: Enhanced the "exact match" functionality to correctly find files whether the search term includes a file extension or not. It now performs two comparisons: one against the full filename (including extension) and another against the base filename (without extension).
+FIXED: filetracker.py: Modified the file extension exclusion logic to apply only when "exact match" is disabled. This ensures that companion files (like .srt, .nfo) are properly included in "exact match" search results when the search term does not specify an extension.
+FIXED: filetracker.py: Refined debug output formatting for "exact match" failures to improve readability and clarity.
+
+June 11, 2025
+
+FIXED: gui_app.py: Addressed an issue where debug output could be suppressed incorrectly based on the debug checkbox state.
+FIXED: filetracker.py: Improved the clarity and tidiness of debug output messages to make them easier to read without compromising detail.
+FIXED: filetracker.py: Removed redundant search summary INFO messages, as the gui_app.py now handles the final result summary display.
+FIXED: filetracker.py: Corrected instances where file.name was incorrectly used instead of file in debug print statements.
