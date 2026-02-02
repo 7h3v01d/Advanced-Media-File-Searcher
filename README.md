@@ -1,6 +1,8 @@
-# Advanced Media File Searcher (Archived)
+# 🎬 Advanced Media File Searcher (Archived)
 
-An experimental Python desktop application for scanning, classifying, and searching large media libraries (movies and TV shows).
+A desktop tool for hunting down movies and TV shows inside chaotic media libraries using smart filename parsing, batch workflows, and a clean tabbed GUI.
+
+This project is archived — but it represents a more mature, fully-wired iteration of an idea that grew beyond “just a file searcher.”
 
 ⚠️ **LICENSE & USAGE NOTICE — READ FIRST**
 
@@ -18,105 +20,157 @@ Use of this software constitutes acceptance of the terms defined in **LICENSE.tx
 
 ---
 
-This project is **archived** and kept as a reference implementation. It represents an ambitious prototype exploring media-aware search, batch processing, and GUI-driven workflows.
+## 🚀 What makes this different?
 
-## What this project is
-This is **not** a simple filename search tool.
+This isn’t a dumb filename grep.
 
-The goal of this project was to explore:
+This tool was built to deal with real-world media mess:
 
-- structured media parsing (movies vs TV shows)
-- metadata-aware classification
-- batch media processing
-- a multi-tab desktop GUI for media operations
+- scene-style filenames
+- inconsistent folder structures
+- mixed movie + TV libraries
+- large drives where “just search manually” stops being practical
 
-## Core features (prototype-level)
+It understands patterns, not just strings.
 
-- **Media file scanning**
-  - Walks directories and inspects media files
-- **Media classification**
-  - Distinguishes movies vs TV shows
-  - Uses naming and structural heuristics
-- **Dedicated parsers**
-  - Separate parsing logic for movies and TV shows
-- **Search service**
-  - Centralized logic for querying parsed media
-- **Batch processing**
-  - Batch-oriented workflows for large libraries
-- **Multi-tab GUI**
-  - Search tab
-  - Batch processing tab
-  - Settings tab
-- **Theming support**
-  - Centralized theme definitions for UI consistency
+## 🧠 Core capabilities
 
-## Project structure
-```text
-AdvancedMediaSearcher/src
-├── gui_app.py
-├── gui_utilities.py
-├── themes.py
-├── search_service.py
-├── media_classifier.py
-├── movie_parser.py
-├── tv_show_parser.py
-├── batch_processor.py
-├── filetracker.py
-├── search_tab.py
-├── batch_tab.py
-├── settings_tab.py
-├── base_parser.py
-└── Documents/
-├── Advanced Media File Searcher.docx
-└── Program Capabilities and Analysis Report.docx
+ - 🔍 Smart media search
+
+    - Searches folders using filename-aware parsing
+    - Designed for movies, TV shows, and mixed libraries
+
+- 🎞️ Media-aware parsing
+
+    - Separate logic paths for movies vs TV shows
+    - Handles common metadata embedded in filenames (year, season/episode, resolution, etc.)
+
+-  📦 Batch mode
+
+    - Run multiple search terms in one pass
+    - Designed for large libraries and automation-style workflows
+
+- 🖥️ Tabbed desktop GUI
+
+    - Search — interactive exploration
+    - Batch — large-scale processing
+    - Settings — persistent configuration
+
+- 🎨 Themes + settings
+
+    - Dark mode support
+    - Saved defaults (folders, file exclusions, UI preferences)
+    - Debug visibility toggle
+
+## 🧭 Why this exists
+
+At some point, media libraries stop being “folders” and start becoming data problems.
+
+This project was an experiment in:
+
+- treating filenames as semi-structured data
+- separating parsing logic from UI
+- building a practical desktop tool instead of a throwaway script
+
+It evolved far enough to need:
+
+- persistent settings
+- cleaner dependency wiring
+- a real GUI layout
+
+That’s where it paused — intentionally preserved in this repo.
+
+## 🗂️ Project structure (high level)
+
+You’ll find the code split into clear responsibilities:
+
+- gui_app.py – main Tkinter app + tab container
+- search_tab.py – interactive searching UI
+- batch_tab.py – batch processing workflows
+- settings_tab.py – saved configuration UI
+- search_service.py – threaded search orchestration
+- filetracker.py – filesystem scanning + filtering
+- base_parser.py (+ specific parsers) – filename intelligence
+- themes.py – UI look & feel
+- settings.json – persisted user preferences
+
+>Some default paths are Windows-specific (e.g. H:\...).</br>
+>They’re just examples and can be changed directly in the Settings tab.
+
+## ▶️ Running it
+
+Requirements:
+
+- Python 3.x
+
+Tkinter (included with most Python installs)
+
+Run the app:
+```bash
+python gui_app.py
 ```
 
-## Architectural notes
+(If your entry point differs after reconstructing the files, run the module with the __main__ block.)
 
-- Parsing, classification, searching, batch processing, and UI are intentionally separated.
-- GUI tabs are implemented as discrete modules rather than a monolithic window.
-- Media logic is domain-aware (movies vs TV shows), not generic file handling.
-- The project evolved iteratively; some components overlap slightly as ideas matured.
+## 🧪 How to use it
 
-This repo intentionally preserves that evolution.
+### 🔍 Search tab
 
-## Requirements
+- Pick a folder
+- Enter a search term
+- Choose smart vs exact matching
+- Start / stop searches cleanly
 
-- Python 3.9+
-- Standard Python GUI stack (as used in the codebase)
-- No external services required
+### 📦 Batch tab
 
-> Note: This project does not currently include a persistence layer or index database. All processing is runtime-based.
+- Provide a list of search terms
+- Run them in one pass
+- Collect results for review or export
 
-## Status
-**Archived / Prototype**
+### ⚙️ Settings tab
 
-This project is not actively maintained. It exists as:
+- Default folders
+- Filetype exclusions
+- Dark mode toggle
+- Debug output visibility
 
-- a design reference
-- an architectural experiment
-- a snapshot of an evolving idea
+Settings persist between sessions.
 
-## Known limitations
+---
 
-- No automated tests
-- No persistent media index
-- No plugin system for parsers
-- Limited error handling
-- Performance not optimized for very large libraries
+## ⚠️ Known limitations (honest list)
 
-These are known trade-offs for an exploratory prototype.
+- Archived project — no active maintenance
 
-## Ideas for future revival
+- No persistent media index/database
+- No automated test suite
+- Parsing rules reflect real-world heuristics, not formal specs
+- Not packaged as an installer
 
-If revisited, potential extensions include:
+All of that is intentional for a prototype snapshot.
 
-- Persistent media index (SQLite or similar)
-- Plugin-based parser architecture
-- Background worker threads for scanning
-- Caching and incremental rescans
-- Unit tests for parsers and classifiers
-- Exportable search results (JSON / CSV)
+---
+
+## 💡 If this were ever revived…
+
+Ideas that were clearly next on the roadmap:
+
+- Persistent media index (SQLite)
+- Plugin-based parser system
+- Background worker pool for scanning
+- Exportable results (CSV / JSON)
+- Packaging (PyInstaller)
+- Unit tests for parsing logic
+
+## 📜 License
+
+Currently unlicensed (personal archive).
+
+If you plan to share or reuse it publicly, consider adding:
+
+MIT for maximum freedom, or
+
+Apache 2.0 for clearer redistribution terms.
 
 ## Contribution Policy
 
