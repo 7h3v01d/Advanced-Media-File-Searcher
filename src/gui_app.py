@@ -15,7 +15,8 @@ from search_tab import SearchTabFrame
 from batch_tab import BatchTabFrame
 from settings_tab import SettingsTabFrame
 from themes import light_theme, dark_theme # Import themes
-
+from app_settings import AppSettings # Import AppSettings
+from filetracker import FileTracker # Import FileTracker
 
 # --- Main GUI Application Class ---
 class FileSearchGUI:
@@ -25,11 +26,21 @@ class FileSearchGUI:
         master.geometry("1000x800")
         master.resizable(True, True)
 
+        # Initialize AppSettings
+        self.app_settings = AppSettings()
+
         # --- Color Themes ---
-        # Themes are now imported from themes.py
         self.light_theme = light_theme
         self.dark_theme = dark_theme
-        self.current_theme = self.light_theme # Default theme
+        
+        # Set initial dark mode and debug mode from settings
+        initial_dark_mode = self.app_settings.get_setting("default_dark_mode")
+        initial_debug_mode = self.app_settings.get_setting("default_debug_mode")
+
+        self.dark_mode_var = tk.BooleanVar(value=initial_dark_mode)
+        self.debug_info_var = tk.BooleanVar(value=initial_debug_mode)
+
+        self.current_theme = self.dark_mode_var.get() and self.dark_theme or self.light_theme # Default theme based on settings
 
         # Master window grid now primarily holds the notebook
         master.grid_columnconfigure(0, weight=1) 
@@ -39,45 +50,73 @@ class FileSearchGUI:
         self.style = ttk.Style()
 
         # Initialize core services
-        self.search_service = FileSearchService()
+        # Instantiate FileTracker and BaseParser first, as they are dependencies for FileSearchService
+        self.file_tracker = FileTracker(self.app_settings) # Pass app_settings_instance to FileTracker
+        self.base_parser = BaseParser() # BaseParser often doesn't need arguments for __init__
 
-        # Dark Mode checkbox state for the main app (moved from old location)
-        self.dark_mode_var = tk.BooleanVar()
-        self.dark_mode_var.set(False) # Default to light mode
+        # Now instantiate FileSearchService with its required dependencies
+        self.search_service = FileSearchService(self.file_tracker, self.base_parser, self.debug_info_var)
 
-        # Debug Info checkbox state for the main app (moved from old location)
-        self.debug_info_var = tk.BooleanVar()
-        self.debug_info_var.set(False) # Default to debug info OFF
 
         # Initialize TextRedirector with the debug_info_var
         self.original_stdout = sys.stdout
+        # Pass the self.debug_info_var directly to TextRedirector
         self.text_redirector = TextRedirector(debug_var=self.debug_info_var, buffer_limit=100) 
         sys.stdout = self.text_redirector
         
+        # Retrieve default search location from settings
+        default_search_location = self.app_settings.get_setting("default_search_location")
+        if not default_search_location: # Fallback if setting not found
+            default_search_location = os.path.expanduser("~") if os.name == 'posix' else os.getcwd()
+
         # --- Widgets ---
         # Notebook (Tabbed Interface)
         self.notebook = ttk.Notebook(master)
         self.notebook.grid(row=0, column=0, sticky="nsew", padx=10, pady=10) # Place notebook in main window
 
-        # Initialize tab frames
-        self.search_tab = SearchTabFrame(self.notebook, self, self.search_service, self.text_redirector, self.debug_info_var, self.dark_mode_var)
-        # Pass necessary arguments to BatchTabFrame
-        self.batch_tab = BatchTabFrame(self.notebook, self, self.search_service, self.text_redirector, self.debug_info_var, self.dark_mode_var)
-        self.settings_tab = SettingsTabFrame(self.notebook, self) # Pass self for dark mode toggling
+        # Initialize tab frames, passing all required arguments including default_search_location
+        self.search_tab = SearchTabFrame(self.notebook, self, self.search_service, self.text_redirector, self.debug_info_var, self.dark_mode_var, default_search_location)
+        self.batch_tab = BatchTabFrame(self.notebook, self, self.search_service, self.text_redirector, self.debug_info_var, self.dark_mode_var, default_search_location)
+        self.settings_tab = SettingsTabFrame(self.notebook, self, self.app_settings, self.text_redirector, self.debug_info_var, self.dark_mode_var)
 
         # Add tabs to the notebook
         self.notebook.add(self.search_tab, text="Search")
         self.notebook.add(self.batch_tab, text="Batch")
         self.notebook.add(self.settings_tab, text="Settings")
 
+        # Bind the tab changed event to update the TextRedirector's target widget
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+
         # Apply initial theme
         self.apply_theme()
         
+        # Set the initial text redirector target based on the default selected tab
+        self._set_current_tab_output_target()
+
         print("INFO: GUI ready. Enter search term and select folder to start search.")
         
         # Overlay properties
         self.overlay_window = None
         self.progress_bar = None
+
+    def _set_current_tab_output_target(self):
+        """Sets the TextRedirector's target widget to the currently selected tab's output."""
+        current_tab_id = self.notebook.select()
+        current_tab_widget = self.notebook.nametowidget(current_tab_id)
+
+        if current_tab_widget == self.search_tab:
+            self.text_redirector.set_output_text_widget(self.search_tab.output_text)
+        elif current_tab_widget == self.batch_tab:
+            self.text_redirector.set_output_text_widget(self.batch_tab.output_text)
+        elif current_tab_widget == self.settings_tab:
+            self.text_redirector.set_output_text_widget(self.settings_tab.output_text)
+        self.text_redirector.flush() # Flush any buffered output to the new target
+
+
+    def _on_tab_changed(self, event):
+        """Callback when the active tab in the notebook changes."""
+        self._set_current_tab_output_target() # Update the TextRedirector's target
+
 
     def apply_theme(self):
         """Applies the current theme colors to all widgets."""
@@ -127,7 +166,7 @@ class FileSearchGUI:
         # Apply theme to individual tabs
         self.search_tab.apply_theme(theme, self.style)
         self.batch_tab.apply_theme(theme, self.style)
-        self.settings_tab.apply_theme(theme, self.style)
+        self.settings_tab.apply_theme(theme, self.style) # Pass the style object here
 
     def toggle_dark_mode(self):
         """
@@ -141,6 +180,8 @@ class FileSearchGUI:
             self.current_theme = self.light_theme
             print("INFO: Switched to Light Mode.")
         self.apply_theme() # Apply the newly set theme to all components
+        # Save dark mode setting to app_settings
+        self.app_settings.set_setting("default_dark_mode", self.dark_mode_var.get())
 
     def show_overlay(self):
         """Displays a 'Processing, Please Wait...' overlay with a spinner."""
@@ -190,8 +231,25 @@ class FileSearchGUI:
         self.search_service.stop_search()
         # Give a small moment for the thread to recognize the stop, if needed
         time.sleep(0.1) 
-        sys.stdout = self.original_stdout
-        self.master.destroy()
+        # Restore stdout before Tkinter's destruction process fully kicks in
+        if sys.stdout == self.text_redirector: # Only restore if it's still redirected
+            self.text_redirector.set_output_text_widget(None) # Disconnect the widget first
+            self.text_redirector.flush() # Flush any remaining buffer before restoring
+            sys.stdout = self.original_stdout 
+            print("INFO: GUI: Original stdout restored. Goodbye!")
+        
+        # Explicitly destroy the notebook first, wrapped in try-except
+        if self.notebook and self.notebook.winfo_exists():
+            try:
+                self.notebook.destroy()
+            except tk.TclError as e:
+                print(f"WARNING: An error occurred during notebook destruction: {e}. Attempting to proceed with master window destruction.")
+        
+        # Use a try-except block for the final master.destroy()
+        try:
+            self.master.destroy()
+        except tk.TclError as e:
+            print(f"WARNING: An error occurred during final master window destruction: {e}. This might be expected during aggressive shutdown.")
 
 # --- Main execution block ---
 if __name__ == "__main__":
@@ -199,4 +257,3 @@ if __name__ == "__main__":
     app = FileSearchGUI(root)
     root.protocol("WM_DELETE_WINDOW", app.on_closing) # Handle window close event
     root.mainloop()
-

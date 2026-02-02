@@ -29,24 +29,24 @@ light_theme = {
 }
 
 dark_theme = {
-    "bg": "#2B2B2B", # Dark gray background
+    "bg": "#36393F", # Dark grey background, matching the image more closely
     "fg": "#E0E0E0", # Light gray foreground
     "entry_bg": "#3C3C3C",
     "entry_fg": "#E0E0E0",
-    "button_bg": "#20B2AA",  # Lighter teal for dark mode (Browse, Paste)
-    "start_button_bg": "#32CD32",  # Bright green (Start Search)
-    "stop_button_bg": "#FF6347",  # Tomato red (Stop Search)  
-    "clear_button_bg": "#6A5ACD", # SlateBlue for Clear Search
-    "button_fg": "#000000", # Black text for ALL buttons in dark mode
+    "button_bg": "#4A7C80",  # A slightly lighter teal for general buttons in dark mode
+    "start_button_bg": "#3F6F72",  # Darker teal from the image's "Start Search" button
+    "stop_button_bg": "#7F4141",  # Reddish-brown from the image's "Stop Search" button
+    "clear_button_bg": "#6A5ACD", # SlateBlue for Clear Search (retained from previous dark theme)
+    "button_fg": "#FFFFFF", # White text for ALL buttons in dark mode (as seen in image)
     "output_bg": "#1E1E1E",
     "output_fg": "#E0E0E0",
     "label_fg": "#E0E0E0",
     "radio_fg": "#E0E0E0",
     # Updated Notebook Tab Colors for Dark Mode
     "notebook_bg": "#3A3A3A", # Medium dark gray for unselected tabs background
-    "notebook_fg": "black", # Text color for unselected tabs (Explicitly black)
+    "notebook_fg": "#FFFFFF", # Text color for unselected tabs (White for better contrast on darker tabs)
     "notebook_selected_bg": "#2E2E2E", # Darker gray for selected tab background
-    "notebook_selected_fg": "black", # Text color for selected tab (Explicitly black)
+    "notebook_selected_fg": "#FFFFFF", # Text color for selected tab (White for better contrast)
     "error_fg": "#FF6B6B",
     "info_fg": "#6BB5FF",
     "debug_fg": "#AAAAAA",

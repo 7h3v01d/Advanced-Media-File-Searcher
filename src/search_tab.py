@@ -4,16 +4,15 @@ import os
 import sys
 import subprocess
 import threading
-import time
+import time # Import time module for sleep
+import uuid # Import uuid for unique tags for context menu
 
-
-# Assuming these are in the same directory or accessible via PYTHONPATH
-# from base_parser import BaseParser # BaseParser is used by FileSearchService, not directly here
-# from search_service import FileSearchService # This will be passed into the constructor
-from gui_utilities import TextRedirector, format_bytes # Import from new utility file
+# Import from new utility file
+from gui_utilities import TextRedirector, format_bytes
+from output_formatter import OutputFormatter # Import the new OutputFormatter
 
 class SearchTabFrame(tk.Frame):
-    def __init__(self, parent_notebook, master_app_instance, search_service, text_redirector, debug_info_var, dark_mode_var):
+    def __init__(self, parent_notebook, master_app_instance, search_service, text_redirector, debug_info_var, dark_mode_var, default_search_location):
         """
         Initializes the SearchTabFrame.
 
@@ -25,6 +24,7 @@ class SearchTabFrame(tk.Frame):
             text_redirector (TextRedirector): The custom stdout redirector for GUI logging.
             debug_info_var (tk.BooleanVar): A BooleanVar controlling debug output visibility.
             dark_mode_var (tk.BooleanVar): A BooleanVar controlling dark mode state.
+            default_search_location (str): The default folder path to use for searches.
         """
         super().__init__(parent_notebook)
         self.master_app = master_app_instance # Store reference to main app for shared functionalities
@@ -32,9 +32,13 @@ class SearchTabFrame(tk.Frame):
         self.text_redirector = text_redirector
         self.debug_info_var = debug_info_var
         self.dark_mode_var = dark_mode_var # Store reference to the main app's dark_mode_var
+        self.default_search_location = default_search_location # Store the passed default location
 
         # Store the last search results for sorting and exporting
         self.last_search_results = []
+        # New: Dictionary to map unique tag names to full file paths for context menu
+        self.path_tag_map = {} 
+
 
         # Configure grid for this frame
         self.grid_columnconfigure(0, weight=1)
@@ -57,7 +61,7 @@ class SearchTabFrame(tk.Frame):
 
         self.file_name_entry = tk.Entry(self.file_name_input_frame, width=60)
         self.file_name_entry.grid(row=0, column=0, sticky="ew", padx=(0, 5))
-        self.file_name_entry.insert(0, "game of s04e04")
+        self.file_name_entry.insert(0, "game of s04e04") # Keep initial example for user
 
         self.paste_button = tk.Button(self.file_name_input_frame, text="Paste", command=self.paste_search_term,
                                       relief="raised", bd=2, padx=5, pady=2)
@@ -70,7 +74,8 @@ class SearchTabFrame(tk.Frame):
 
         self.location_entry = tk.Entry(self, width=60)
         self.location_entry.grid(row=3, column=0, sticky="ew", padx=10, pady=(0, 5))
-        self.location_entry.insert(0, os.path.expanduser("~") if os.name == 'posix' else os.getcwd())
+        # Set default value for search location from passed argument
+        self.location_entry.insert(0, self.default_search_location)
 
         self.browse_button = tk.Button(self, text="Browse Folder", command=self.browse_folder,
                                        relief="raised", bd=2, padx=10, pady=5)
@@ -118,16 +123,15 @@ class SearchTabFrame(tk.Frame):
         self.sort_label = tk.Label(self.sort_frame, text="Sort Results By:")
         self.sort_label.pack(side="left", padx=(0, 5))
 
-        self.sort_option_var = tk.StringVar(value="Filename (Ascending)") # Default sort
-        self.sort_options = [
-            "Filename (Ascending)", "Filename (Descending)",
-            "Size (Ascending)", "Size (Descending)",
-            "Category (Ascending)", "Category (Descending)"
-        ]
-        self.sort_combobox = ttk.Combobox(self.sort_frame, textvariable=self.sort_option_var,
-                                          values=self.sort_options, state="readonly", width=25)
+        self.sort_combobox = ttk.Combobox(self.sort_frame, textvariable=tk.StringVar(value="Filename (Ascending)"),
+                                          values=[
+                                            "Filename (Ascending)", "Filename (Descending)",
+                                            "Size (Ascending)", "Size (Descending)",
+                                            "Category (Ascending)", "Category (Descending)"
+                                          ],
+                                          state="readonly", width=25)
         self.sort_combobox.pack(side="left", padx=5)
-        self.sort_combobox.set(self.sort_options[0]) # Set default value
+        self.sort_combobox.set("Filename (Ascending)") # Set default value
 
 
         # 6. Search and Stop Buttons
@@ -137,11 +141,11 @@ class SearchTabFrame(tk.Frame):
         self.button_row_frame.grid_columnconfigure(1, weight=1) # Stop Button
 
         self.search_button = tk.Button(self.button_row_frame, text="Start Search", command=self.start_search_thread,
-                                       relief="raised", bd=2, padx=20, pady=10, font=("TkDefaultFont", 10, "bold"))
+                                       relief="raised", bd=2, padx=20, pady=10, font=("TkDefaultFont", 12, "bold"))
         self.search_button.grid(row=0, column=0, padx=(0, 5), sticky="ew")
 
         self.stop_button = tk.Button(self.button_row_frame, text="Stop Search", command=self.stop_search,
-                                       relief="raised", bd=2, padx=20, pady=10, font=("TkDefaultFont", 10, "bold"),
+                                       relief="raised", bd=2, padx=20, pady=10, font=("TkDefaultFont", 12, "bold"),
                                       state=tk.DISABLED) # Initially disabled
         self.stop_button.grid(row=0, column=1, padx=5, sticky="ew")
 
@@ -166,6 +170,7 @@ class SearchTabFrame(tk.Frame):
 
 
         # 8. Actual Output Text Area
+        # Set a default monospace font here for better control over spacing and rendering
         self.output_text = tk.Text(self, wrap="word", height=30, width=120, relief="sunken", bd=1)
         self.output_text.grid(row=9, column=0, columnspan=2, sticky="nsew", padx=10, pady=(0, 10))
 
@@ -227,7 +232,10 @@ class SearchTabFrame(tk.Frame):
         # Output Text Area (general background/foreground)
         self.output_text.config(bg=theme["output_bg"], fg=theme["output_fg"])
         
-        # Apply colors to specific output text tags
+        # Apply fonts to specific output text tags using a monospace font for alignment
+        # Set a base font for general output text to ensure consistency
+        self.output_text.config(font=("Courier New", 10)) # Base font for the Text widget
+
         self.output_text.tag_config("error", foreground=theme["error_fg"])
         self.output_text.tag_config("info", foreground=theme["info_fg"])
         self.output_text.tag_config("debug", foreground=theme["debug_fg"])
@@ -235,11 +243,17 @@ class SearchTabFrame(tk.Frame):
         self.output_text.tag_config("summary_not_found", foreground=theme["summary_not_found_fg"])
         self.output_text.tag_config("summary_found", foreground=theme["summary_found_fg"])
         self.output_text.tag_config("category_header", foreground=theme["category_header_fg"])
-        self.output_text.tag_config("item_detail", foreground=theme["item_detail_fg"])
-        self.output_text.tag_config("item_detail_parsed", foreground=theme["item_detail_parsed_fg"])
         
-        # Style for the Combobox - Reverted to previous settings
-        # Note: ttk_style is passed from the main app to ensure consistency for ttk widgets
+        # Explicitly set the font for item_detail and item_detail_parsed
+        self.output_text.tag_config("item_detail", font=("Courier New", 10), foreground=theme["item_detail_fg"])
+        self.output_text.tag_config("item_detail_parsed", font=("Courier New", 10), foreground=theme["item_detail_parsed_fg"])
+        
+        # New tag for the actual filename, bold and a different font but same size
+        self.output_text.tag_config("item_filename_result", font=("Verdana", 10, "bold"), foreground=theme["item_detail_fg"])
+        # Ensure header also uses Courier New for consistency if needed, adjust size as appropriate
+        self.output_text.tag_config("summary_header_bold_large", font=("Courier New", 12, "bold"), foreground=theme["category_header_fg"])
+
+
         ttk_style.configure("TCombobox",
                              fieldbackground=theme["entry_bg"],
                              background=theme["button_bg"], # Dropdown button background
@@ -247,7 +261,7 @@ class SearchTabFrame(tk.Frame):
                              selectbackground=theme["entry_bg"], # Background of selected item in dropdown list
                              selectforeground=theme["entry_fg"], # Foreground of selected item in dropdown list
                              bordercolor=theme["notebook_bg"],
-                             arrowcolor=theme["entry_fg"]) # Arrow color
+                             arrowcolor=theme["entry_fg"])
         ttk_style.map("TCombobox",
                        fieldbackground=[("readonly", theme["entry_bg"])],
                        background=[("readonly", theme["button_bg"])],
@@ -263,6 +277,8 @@ class SearchTabFrame(tk.Frame):
         self.text_redirector.flush()
         # Clear the output text area to remove all previous content, including old debug logs
         self.output_text.delete(1.0, tk.END) 
+        # Clear the path map at the start of a new search
+        self.path_tag_map = {} 
         
         print("INFO: GUI: Initiating search...")
         
@@ -286,6 +302,12 @@ class SearchTabFrame(tk.Frame):
         if not search_location:
             messagebox.showerror("Input Error", "Please select a folder to search.")
             print("ERROR: GUI: Search location not provided.")
+            self.master_app.hide_overlay()
+            self.search_button.config(state=tk.NORMAL)
+            self.stop_button.config(state=tk.DISABLED)
+            return
+        if not os.path.isdir(search_location):
+            messagebox.showerror("Input Error", f"Folder not found: {search_location}")
             self.master_app.hide_overlay()
             self.search_button.config(state=tk.NORMAL)
             self.stop_button.config(state=tk.DISABLED)
@@ -333,16 +355,17 @@ class SearchTabFrame(tk.Frame):
         self.output_text.config(state=tk.NORMAL)
         self.output_text.delete(1.0, tk.END)
         self.output_text.config(state=tk.DISABLED)
+        self.path_tag_map = {} # Clear the map
         print("INFO: GUI: Output area cleared.")
 
     def clear_all_fields_and_output(self):
-        """Clears all input fields and the output text area, resetting the UI."""
+        """Clears all input fields and the search output area, resetting the UI."""
         self.file_name_entry.delete(0, tk.END)
         self.file_name_entry.insert(0, "") # Optionally insert default or leave blank
 
         # Reset location to default or clear it
         self.location_entry.delete(0, tk.END)
-        self.location_entry.insert(0, os.path.expanduser("~") if os.name == 'posix' else os.getcwd())
+        self.location_entry.insert(0, self.default_search_location) # Use the passed default
 
         self.search_type_var.set("TV Show") # Reset radio button to default
         self.exact_match_var.set(False) # Uncheck exact match
@@ -362,13 +385,11 @@ class SearchTabFrame(tk.Frame):
         This method is called safely from the main thread via master.after.
         """
         self.last_search_results = results_to_display # Store results for potential sorting/exporting
-
-        self.output_text.config(state=tk.NORMAL) # Enable editing
-        self.output_text.delete(1.0, tk.END) # Clear existing output
+        self.path_tag_map = {} # Reset map for new results
 
         # --- Apply Sorting ---
         sorted_results = list(self.last_search_results) # Create a mutable copy
-        sort_option = self.sort_option_var.get()
+        sort_option = self.sort_combobox.get() # Corrected: Get value from combobox directly
 
         if sorted_results:
             if "Filename" in sort_option:
@@ -381,33 +402,21 @@ class SearchTabFrame(tk.Frame):
                 reverse_sort = "Descending" in sort_option
                 sorted_results.sort(key=lambda x: x['category'].lower(), reverse=reverse_sort)
 
+        # Use the new OutputFormatter to get the formatted list of (text, tag, raw_path_for_item) tuples
+        formatted_segments = OutputFormatter.format_single_search_results(
+            sorted_results, search_term, selected_type, self.debug_info_var
+        )
 
-        if sorted_results:
-            self.output_text.insert(tk.END, f"\nSearch Summary: Found {len(sorted_results)} '{selected_type}' files matching '{search_term}'.\n\n", "summary_found")
-            for item in sorted_results:
-                self.output_text.insert(tk.END, f"File: {os.path.basename(item['raw_path'])}\n", "category_header")
-                self.output_text.insert(tk.END, f"  Path: {item['raw_path']}\n", "item_detail")
-                self.output_text.insert(tk.END, f"  Size: {format_bytes(item['size_bytes'])}\n", "item_detail")
-                self.output_text.insert(tk.END, f"  Category: {item['category']}\n", "item_detail")
-
-                parsed_data = item.get("parsed_data", {})
-                if item["category"] == "Movie":
-                    title = parsed_data.get("title", "N/A")
-                    year = parsed_data.get("year", "N/A")
-                    resolution = parsed_data.get("resolution", "N/A")
-                    self.output_text.insert(tk.END, f"  Parsed: Title='{title}', Year='{year}', Resolution='{resolution}'\n", "item_detail_parsed")
-                elif item["category"] == "TV Show":
-                    title = parsed_data.get("title", "N/A")
-                    season = parsed_data.get("season", "N/A")
-                    episode = parsed_data.get("episode", "N/A")
-                    episode_title = parsed_data.get("episode_title", "N/A")
-                    self.output_text.insert(tk.END, f"  Parsed: Title='{title}', Season={season}, Episode={episode}, Episode Title='{episode_title}'\n", "item_detail_parsed")
-                else: # Other category
-                    self.output_text.insert(tk.END, f"  (No specific media parsing data available)\n", "item_detail_parsed")
-                self.output_text.insert(tk.END, "\n", "item_detail")
-
-        else: # No files found
-            self.output_text.insert(tk.END, f"\nSearch Summary: No '{selected_type}' files found matching '{search_term}'.\n", "summary_not_found")
+        self.output_text.config(state=tk.NORMAL) # Enable editing
+        self.output_text.delete(1.0, tk.END) # Clear existing output
+        
+        for text, tag, raw_path in formatted_segments:
+            if raw_path: # This segment is the first line of an item block and carries the raw_path
+                unique_path_tag = f"path_{uuid.uuid4().hex}"
+                self.path_tag_map[unique_path_tag] = raw_path # Store full path with unique tag
+                self.output_text.insert(tk.END, text, (tag, unique_path_tag))
+            else: # Regular text segment
+                self.output_text.insert(tk.END, text, tag)
         
         self.output_text.config(state=tk.DISABLED) # Disable editing
         print("INFO: GUI: Search results displayed.")
@@ -416,23 +425,17 @@ class SearchTabFrame(tk.Frame):
     def _get_filepath_at_cursor(self, event):
         """
         Attempts to extract a file path from the line under the mouse cursor.
-        This function is now the primary way to get the path for the context menu.
+        Now retrieves the full path from the stored map using a unique tag.
         """
         try:
-            # Get the index of the character at the event's coordinates
             index = self.output_text.index(f"@{event.x},{event.y}")
-            # Get the start and end of the line
-            line_start = self.output_text.index(index + " linestart")
-            line_end = self.output_text.index(index + " lineend")
-            # Get the full content of the line
-            line_content = self.output_text.get(line_start, line_end)
-
-            # Check if the line starts with "  Path: "
-            if line_content.startswith("  Path: "):
-                filepath = line_content[len("  Path: "):].strip()
-                # Basic validation: check if it looks like a valid path
-                if os.path.exists(filepath):
-                    return filepath
+            # Get all tags at the clicked position
+            tags_at_point = self.output_text.tag_names(index)
+            
+            for tag in tags_at_point:
+                if tag.startswith("path_"): # Look for our special path tag
+                    if tag in self.path_tag_map:
+                        return self.path_tag_map[tag] # Return the full raw_path
             return None
         except tk.TclError:
             return None
@@ -491,7 +494,7 @@ class SearchTabFrame(tk.Frame):
             self.master.clipboard_append(filepath)
             messagebox.showinfo("Copied", "File path copied to clipboard.")
             print(f"INFO: GUI: Copied to clipboard: {filepath}")
-        except tk.TclError as e:
+        except tk.TclError:
             messagebox.showerror("Error", f"Failed to copy to clipboard: {e}")
             print(f"ERROR: GUI: Failed to copy {filepath} to clipboard: {e}")
 
@@ -544,4 +547,3 @@ if __name__ == "__main__":
     # app = FileSearchGUI(root)
     # root.protocol("WM_DELETE_WINDOW", app.on_closing) # Handle window close event
     # root.mainloop()
-

@@ -1,5 +1,6 @@
 import tkinter as tk
 import os
+import re # For log message parsing
 
 # --- Custom Stream Redirection for GUI Output ---
 class TextRedirector:
@@ -10,7 +11,7 @@ class TextRedirector:
     """
     def __init__(self, debug_var=None, buffer_limit=100): # Added buffer_limit
         self.widget = None  # Will be set later
-        self.debug_var = debug_var # Link to the debug checkbox variable
+        self.debug_var = debug_var # Link to the debug checkbox variable (tk.BooleanVar)
         self.buffer = [] # Initialize buffer to store (text, tag) tuples
         self.buffer_limit = buffer_limit # Number of lines to buffer before flushing
         self.after_id = None # To store ID of scheduled 'after' call for flushing
@@ -19,7 +20,25 @@ class TextRedirector:
         self.widget = widget
         # When the widget is set, apply initial default tag configs if needed,
         # but apply_theme will handle actual color mapping.
-        self.widget.tag_config("stdout") # A default tag for general output
+        # Add a check here to ensure self.widget is not None before calling tag_config
+        if self.widget:
+            self.widget.tag_config("stdout") # A default tag for general output
+
+    def set_debug_mode(self, is_debug_enabled):
+        """
+        Sets the debug mode for the text redirector.
+        Args:
+            is_debug_enabled (bool): True to enable debug messages, False to disable.
+        """
+        # Ensure debug_var is a BooleanVar before setting its value
+        if self.debug_var and isinstance(self.debug_var, tk.BooleanVar):
+            self.debug_var.set(is_debug_enabled)
+        elif self.debug_var is None:
+            # If debug_var wasn't provided, we can still internally manage a debug state
+            # This handles cases where debug_var is not directly linked to a Tkinter var
+            self._internal_debug_state = is_debug_enabled
+        # If debug_var is a bool directly, it implies it's not a Tkinter variable,
+        # so we can't call .set() on it. This is why we introduced the check for isinstance(tk.BooleanVar)
 
     def write(self, text):
         """
@@ -30,73 +49,63 @@ class TextRedirector:
             return
 
         # Suppress "Found:" messages from filetracker as GUI will format its own detailed output
-        if text.startswith("Found:"):
+        if text.strip().startswith("Found:"):
             return
 
-        # Determine if this is a debug message and if it should be suppressed
-        is_debug_message = text.startswith("DEBUG:")
-        # Only suppress debug messages if the debug_var exists and is explicitly set to False
-        should_suppress_debug = is_debug_message and (self.debug_var and not self.debug_var.get())
+        tag = "stdout" # Default tag
 
-        if should_suppress_debug:
-            return # Skip insertion entirely for suppressed debug messages
-
-        # Ensure that even empty lines or just newlines don't create unwanted blank spaces
-        # if they are not explicitly intended to be part of the output flow.
-        # This prevents excessive blank lines from prints that are just newlines.
-        if text.strip() == "" and text == "\n":
-             return
-
-        # Determine the tag based on the message prefix
-        applied_tag = "stdout" # Default general tag
-        if is_debug_message:
-            applied_tag = "debug"
-        elif text.startswith("ERROR:"):
-            applied_tag = "error"
+        # Determine tag based on message content
+        if text.startswith("ERROR:"):
+            tag = "error"
         elif text.startswith("INFO:"):
-            applied_tag = "info"
+            tag = "info"
+        elif text.startswith("DEBUG:"):
+            # Only append debug messages if debug_var is True
+            # Check if debug_var is a BooleanVar first, then get its value
+            if self.debug_var and isinstance(self.debug_var, tk.BooleanVar):
+                if not self.debug_var.get():
+                    return # Suppress debug message if debug mode is off
+            # Fallback for older configurations or non-tk.BooleanVar debug_var
+            elif self.debug_var is False or (hasattr(self, '_internal_debug_state') and not self._internal_debug_state):
+                 return # Suppress if debug is explicitly False or internal state is False
+            tag = "debug"
         elif text.startswith("WARNING:"):
-            applied_tag = "warning"
+            tag = "warning"
         
-        # Ensure a newline for each distinct write call if it doesn't already have one
-        if not text.endswith('\n'):
-            text += '\n'
+        self.buffer.append((text, tag))
 
-        # Append to buffer instead of immediate insert
-        self.buffer.append((text, applied_tag))
+        # Schedule a flush if the buffer limit is reached or if no flush is already scheduled
+        if len(self.buffer) >= self.buffer_limit and not self.after_id:
+            # Use self.widget.after to schedule flush on the main Tkinter thread
+            self.after_id = self.widget.after(10, self.flush_buffer)
+        elif not self.after_id:
+            # If buffer not full, but no flush scheduled, schedule a small delay flush
+            self.after_id = self.widget.after(10, self.flush_buffer)
 
-        # If buffer limit is reached or if it's an error/warning (urgent message), flush immediately
-        # Error/warning messages are flushed immediately for immediate user feedback.
-        if len(self.buffer) >= self.buffer_limit or applied_tag in ["error", "warning"]:
-            self.flush_buffer()
-        else:
-            # Schedule a small delay to flush the buffer if no more writes come in quickly.
-            # We cancel any previously scheduled flush to avoid redundant calls if writes are rapid.
-            if self.after_id:
-                self.widget.after_cancel(self.after_id)
-            # Schedule flush after a short delay (e.g., 50ms)
-            self.after_id = self.widget.after(50, self.flush_buffer)
 
     def flush_buffer(self):
         """
-        Processes and inserts buffered messages into the Text widget.
-        Optimizes by enabling/disabling widget state only once per batch.
+        Inserts all buffered text into the widget and clears the buffer.
+        Configures widget state only once per batch.
         """
         # Clear any pending scheduled flush to prevent it from firing after manual flush
-        if self.after_id:
+        # Add a check for self.widget before calling after_cancel
+        if self.after_id and self.widget:
             self.widget.after_cancel(self.after_id)
             self.after_id = None
 
         if not self.buffer: # Nothing to flush
             return
 
-        self.widget.config(state=tk.NORMAL) # Enable editing once for the entire batch
-        for text, tag in self.buffer:
-            self.widget.insert(tk.END, text, tag)
-        self.buffer = [] # Clear the buffer after inserting
+        # Add a check here to ensure self.widget is not None before configuring
+        if self.widget:
+            self.widget.config(state=tk.NORMAL) # Enable editing once for the entire batch
+            for text, tag in self.buffer:
+                self.widget.insert(tk.END, text, tag)
+            self.buffer = [] # Clear the buffer after inserting
 
-        self.widget.config(state=tk.DISABLED) # Disable editing once after the entire batch
-        self.widget.see(tk.END) # Auto-scroll once after all inserts
+            self.widget.config(state=tk.DISABLED) # Disable editing once after the entire batch
+            self.widget.see(tk.END) # Auto-scroll once after all inserts
 
     def flush(self):
         """
@@ -118,4 +127,3 @@ def format_bytes(size_bytes):
         size_bytes /= 1024
         i += 1
     return f"{size_bytes:.2f} {units[i]}"
-

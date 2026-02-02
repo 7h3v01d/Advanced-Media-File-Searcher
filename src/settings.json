@@ -1,0 +1,21 @@
+{
+    "max_scan_depth": 5,
+    "excluded_file_types": [
+        ".tmp",
+        ".log",
+        ".DS_Store",
+        ".ini",
+        ".db"
+    ],
+    "default_search_location": "H:/TorrentCompleter",
+    "default_batch_input_folder": "H:\\Projects\\MediaHunter",
+    "default_batch_output_folder": "H:\\Projects\\MediaHunter",
+    "default_search_type": "TV Show",
+    "default_exact_match": false,
+    "default_batch_instance_mode": "Multiple",
+    "default_dark_mode": false,
+    "default_debug_mode": false,
+    "default_exclude_filetypes": ".tmp, .log, .nfo, .txt",
+    "output_font_size": 10,
+    "output_font_family": "TkDefaultFont"
+}
